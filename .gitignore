@@ -1,0 +1,64 @@
+# ── Elixir / Mix ─────────────────────────────────────────────
+_build/
+deps/
+cover/
+doc/
+.fetch
+erl_crash.dump
+*.ez
+*.beam
+.elixir_ls/
+.lexical/
+/services/*/priv/static/
+
+# ── Haskell / Cabal / Stack ──────────────────────────────────
+dist/
+dist-newstyle/
+.stack-work/
+cabal.project.local
+cabal.project.local~
+.ghc.environment.*
+.hie/
+.hpc/
+*.hi
+*.o
+*.dyn_hi
+*.dyn_o
+*.hp
+*.prof
+*.eventlog
+
+# ── Código generado desde proto/ (se regenera con `make proto`) ──
+/services/subastas/lib/generated/
+/services/consulta/lib/generated/
+/services/usuarios/gen/
+
+# ── Certificados y llaves TLS (NUNCA al repo) ────────────────
+/certs/*
+!/certs/.gitkeep
+*.pem
+*.key
+*.crt
+*.csr
+*.srl
+*.p12
+*.pfx
+*.jks
+
+# ── Entorno y secretos ───────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Evidencias pesadas del toolkit ofensivo ──────────────────
+/attack/out/
+*.pcap
+*.pcapng
+
+# ── Editor / SO ──────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db

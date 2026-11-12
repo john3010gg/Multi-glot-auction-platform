@@ -1,0 +1,120 @@
+# Plataforma de subastas — topología de despliegue.
+#
+#   host ──(GRAPHQL_PORT)──> consulta ──gRPC──> subastas
+#                               │
+#                               └──REST──> usuarios ──gRPC──> subastas
+#
+# Redes:
+#   backend  internal: true. Sin salida a Internet ni acceso desde el host.
+#            Los servicios se resuelven por nombre (subastas, usuarios, consulta).
+#   edge     Docker no publica puertos de contenedores que solo están en redes
+#            internas, así que el gateway (y solo él) se une además a esta red
+#            para poder exponer su puerto al host.
+#
+# Interruptor de modo: HARDENED (true/false), propagado a los tres servicios.
+# Con HARDENED=false quedan APAGADOS:
+#
+#   Defensa                              Servicio(s)            Falla OWASP
+#   ───────────────────────────────────  ─────────────────────  ───────────
+#   TLS entre servicios y hacia cliente  los tres               API8
+#   Introspección GraphQL deshabilitada  consulta               API8
+#   Reflection gRPC deshabilitada        subastas               API8 / API9
+#   Autorización a nivel de objeto       usuarios (y consulta)  API1 / API3
+#   Autorización a nivel de función      subastas               API5
+#   Límites de profundidad / costo       consulta               API4
+#   Rate limiting                        consulta, usuarios     API4 / API6
+#
+# El andamiaje SOLO propaga la variable y los placeholders de .env.example:
+# cada servicio la lee y la registra al arrancar, nada más.
+# TODO(equipo): implementar cada defensa detrás de HARDENED en su servicio.
+
+name: subastas
+
+x-modo: &modo
+  HARDENED: ${HARDENED:-false}
+  # Placeholders de las defensas (sin efecto hasta que el equipo las implemente)
+  TLS_CA_FILE: ${TLS_CA_FILE:-/certs/ca.pem}
+  TLS_CERT_FILE: ${TLS_CERT_FILE:-/certs/servicio.pem}
+  TLS_KEY_FILE: ${TLS_KEY_FILE:-/certs/servicio-key.pem}
+  AUTH_SECRET: ${AUTH_SECRET:-CAMBIAR}
+  RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-0}
+  RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-0}
+
+services:
+  # ── Motor de subastas: gRPC (Elixir) ── OWASP API5, API9 ──────────────
+  subastas:
+    build:
+      context: .
+      dockerfile: services/subastas/Dockerfile
+    environment:
+      <<: *modo
+      GRPC_PORT: ${SUBASTAS_GRPC_PORT:-50051}
+    expose:
+      - "${SUBASTAS_GRPC_PORT:-50051}"
+    volumes:
+      - ./certs:/certs:ro
+    networks: [backend]
+    restart: unless-stopped
+
+  # ── Usuarios y pagos: REST (Haskell/Servant) ── OWASP API1, API3 ──────
+  usuarios:
+    build:
+      context: .
+      dockerfile: ${USUARIOS_DOCKERFILE:-services/usuarios/Dockerfile}
+      args:
+        CABAL_FLAGS: ${USUARIOS_CABAL_FLAGS:-}
+    environment:
+      <<: *modo
+      PORT: ${USUARIOS_HTTP_PORT:-8080}
+      SUBASTAS_GRPC_ADDR: subastas:${SUBASTAS_GRPC_PORT:-50051}
+    expose:
+      - "${USUARIOS_HTTP_PORT:-8080}"
+    volumes:
+      - ./certs:/certs:ro
+    networks: [backend]
+    restart: unless-stopped
+
+  # ── Gateway de consulta: GraphQL + subscriptions (Elixir/Absinthe) ────
+  # ── OWASP API4, API6, API8 ── ÚNICO servicio con puerto publicado ─────
+  consulta:
+    build:
+      context: .
+      dockerfile: services/consulta/Dockerfile
+    environment:
+      <<: *modo
+      PORT: "4000"
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-CAMBIAR_por_un_valor_aleatorio_de_al_menos_64_caracteres_0123456789abcdef}
+      SUBASTAS_GRPC_ADDR: subastas:${SUBASTAS_GRPC_PORT:-50051}
+      USUARIOS_HTTP_URL: http://usuarios:${USUARIOS_HTTP_PORT:-8080}
+      GRAPHQL_MAX_DEPTH: ${GRAPHQL_MAX_DEPTH:-0}
+      GRAPHQL_MAX_COMPLEXITY: ${GRAPHQL_MAX_COMPLEXITY:-0}
+    ports:
+      - "${GRAPHQL_PORT:-4000}:4000"
+    volumes:
+      - ./certs:/certs:ro
+    depends_on: [subastas, usuarios]
+    networks: [backend, edge]
+    restart: unless-stopped
+
+  # ── Herramientas de prueba (perfil "tools", no arrancan con `up`) ─────
+  # Como gRPC y REST no se publican al host, se prueban desde dentro de la
+  # red backend:  docker compose run --rm grpcurl ...  /  ... run --rm curl ...
+  grpcurl:
+    image: fullstorydev/grpcurl:latest
+    profiles: [tools]
+    volumes:
+      - ./proto:/proto:ro
+      - ./certs:/certs:ro
+    networks: [backend]
+
+  curl:
+    image: curlimages/curl:latest
+    profiles: [tools]
+    volumes:
+      - ./certs:/certs:ro
+    networks: [backend]
+
+networks:
+  backend:
+    internal: true
+  edge: {}

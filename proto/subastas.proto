@@ -1,0 +1,36 @@
+// Contrato compartido de la plataforma de subastas.
+// Fuente de verdad para los tres servicios: NO editar el código generado,
+// editar este archivo y volver a correr `make proto`.
+//
+// Reglas para extender sin romper compatibilidad:
+//   - nunca reutilizar ni renumerar un tag existente;
+//   - agregar campos/mensajes/RPCs nuevos al final de cada bloque;
+//   - el núcleo de abajo está acordado con la cátedra: no modificarlo.
+
+// ───────────────────────── NÚCLEO (no modificar) ─────────────────────────
+syntax = "proto3";
+package subastas.v1;
+import "google/protobuf/timestamp.proto";
+enum Estado { ESTADO_DESCONOCIDO = 0; ABIERTA = 1; CERRADA = 2; }
+message Subasta {
+  string id = 1; string vendedor_id = 2; string titulo = 3;
+  int64 precio_salida = 4; int64 incremento_minimo = 5;
+  int64 precio_actual = 6; string lider_id = 7;
+  google.protobuf.Timestamp cierre = 8; Estado estado = 9;
+}
+message PujarReq  { string subasta_id = 1; string usuario_id = 2; int64 monto = 3; }
+message PujarResp { bool aceptada = 1; string motivo = 2; Subasta subasta = 3; }
+message SubastaId { string id = 1; }
+service Subastas {
+  rpc Crear   (Subasta)  returns (Subasta);
+  rpc Pujar   (PujarReq) returns (PujarResp);
+  rpc Obtener (SubastaId) returns (Subasta);
+  rpc Seguir  (SubastaId) returns (stream Subasta);
+}
+// ─────────────────────── FIN DEL NÚCLEO ───────────────────────
+
+// ───────────────────────── EXTENSIONES ─────────────────────────
+// TODO(equipo): agregar aquí mensajes y servicios nuevos (p. ej. un servicio
+// administrativo para demostrar API5, o una v0 "olvidada" para API9).
+// Los RPCs nuevos del servicio Subastas van en un `service` aparte o en un
+// archivo nuevo dentro de proto/ (el Makefile compila todos los proto/*.proto).

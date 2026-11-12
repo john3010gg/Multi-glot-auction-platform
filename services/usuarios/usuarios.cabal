@@ -1,0 +1,50 @@
+cabal-version:      3.0
+name:               usuarios
+version:            0.1.0.0
+synopsis:           Servicio REST de usuarios y pagos (Servant)
+build-type:         Simple
+
+-- Tipos generados desde proto/ con proto-lens (`make proto-haskell` los deja
+-- en gen/). Apagado por defecto para que el andamiaje compile sin protoc.
+-- Activar con:  cabal build -f proto   (o USUARIOS_CABAL_FLAGS="-f proto")
+flag proto
+  description: Compila los modulos Proto.* generados en gen/
+  default:     False
+  manual:      True
+
+common comun
+  default-language: Haskell2010
+  ghc-options:      -Wall
+  build-depends:    base >=4.16 && <5
+
+library
+  import:           comun
+  hs-source-dirs:   src
+  exposed-modules:
+    Usuarios.Api
+    Usuarios.Config
+    Usuarios.Handlers
+    Usuarios.Tipos
+  build-depends:
+    , aeson
+    , servant-server
+    , text
+
+  if flag(proto)
+    hs-source-dirs: gen
+    exposed-modules:
+      Proto.Subastas
+      Proto.Subastas_Fields
+    build-depends:
+      , proto-lens-protobuf-types
+      , proto-lens-runtime
+
+executable usuarios
+  import:           comun
+  hs-source-dirs:   app
+  main-is:          Main.hs
+  ghc-options:      -threaded -rtsopts
+  build-depends:
+    , servant-server
+    , usuarios
+    , warp

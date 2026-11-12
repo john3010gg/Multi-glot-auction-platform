@@ -1,0 +1,10 @@
+.git
+.env
+certs
+docs
+attack
+**/_build
+**/deps
+**/dist-newstyle
+**/.stack-work
+**/.elixir_ls
